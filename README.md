@@ -188,3 +188,10 @@ Linux 4.15.0-133-generic #137~16.04.1-Ubuntu SMP Fri Jan 15 02:55:05 UTC 2021 i6
 If you see `i386` or `i686` then your system is 32-bit.
 
 To compile the assembly code you will need `nasm`. You can install it using `apt-get`.
+
+```
+make clean
+make all
+./shellcode
+./wrapper
+```
