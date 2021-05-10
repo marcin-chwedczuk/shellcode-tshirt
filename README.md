@@ -113,7 +113,7 @@ When we call a system function we pass the function arguments in
 `eax` register is used to select the function itself. We may see the list of all available functions [here](https://chromium.googlesource.com/chromiumos/docs/+/master/constants/syscalls.md#x86-32_bit).
 
 For example to call `exit(0)`, first we need to check the value that system assigned to `exit` function (`0x01`) and put it in `eax` register.
-`exit(0)` takes one argument, so we must also put its value in `ebx` register
+`exit(0)` takes one argument, we must put the argument value in `ebx` register
 (subsequent arguments would go in `ecx`, then `edx` and so on).
 Finally we may call the kernel using `int 0x80` software interrupt:
 ```asm
@@ -124,3 +124,67 @@ Finally we may call the kernel using `int 0x80` software interrupt:
 	mov    ebx, 0x0
 	int    0x80
 ```
+
+`execve` function is assigned to number `0x0b`. And when we look at the t-shirt again, there, after a block of `mov`s we can see that exactly this function is
+called:
+```asm
+	mov    eax, 0xb ; execve(filename, argv, envp)
+	mov    ebx, esi 
+	lea    ecx, [esi+0x8] 
+	lea    edx, [esi+0xc]
+	int    0x80
+```
+`lea` instruction is used to load the address of the operand to the specified register.
+But here since we use indirect memory addressing, `lea ecx, [esi+0x8]`
+is equivalent to `ecx = esi + 0x08` in C.
+
+After all these `mov`s and `lea`s we will have the address of `/bin/sh` string in `ebx`, the address of `args` array (pointer to `/bin/sh` followed by `NULL`)
+in `ecx` and finally address of `NULL` in `edx`.
+In other words our code will be equivalent to the C code that we saw earlier:
+```c
+int main(int argc, char** argv) {
+	char* args[] = { "/bin/sh", NULL };
+	execve(args[0], &args[0], &args[1]);
+}
+```
+
+What follows call to `execve` is a call to `exit(0)`. This is a standard technique used in shellcode to just exit the program without crashes. This way we will leave no traces of our code like coredumps.
+
+All in all the code on our t-shirt should look like this:
+```asm
+	jmp   short _sh_last
+ 
+_sh_start:
+	pop    esi
+
+	mov    dword [esi+0x8], esi
+	mov    byte  [esi+0x7], 0x0
+	mov    dword [esi+0xc], 0x0
+
+	mov    eax, 0xb ; execve(filename, argv, envp)
+	mov    ebx, esi 
+	lea    ecx, [esi+0x8] 
+	lea    edx, [esi+0xc]
+	int    0x80
+
+	mov    eax, 0x1 ; exit(0)
+	mov    ebx, 0x0
+	int    0x80
+
+_sh_last:
+	call   _sh_start
+	db  '/bin/sh'
+```
+
+Now the moral of this story: always put a _working_ shellcode on t-shirts.
+
+Bonus: This repo contains a `Makefile` that will build the shellcode and also prepare a C header file containing the shellcode bytes. There is also a wrapper program that will demonstrate that the shellcode indeed works. The only thing that you need is a 32-bit Linux.
+
+You can check if a Linux system is 32-bit using `uname -a` command:
+```
+uname -a
+Linux 4.15.0-133-generic #137~16.04.1-Ubuntu SMP Fri Jan 15 02:55:05 UTC 2021 i686 i686 i686 GNU/Linux
+```
+If you see `i386` or `i686` then your system is 32-bit.
+
+To compile the assembly code you will need `nasm`. You can install it using `apt-get`.
