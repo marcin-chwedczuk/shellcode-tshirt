@@ -10,7 +10,7 @@ shellcode.h: shellcode.bytes
 
 shellcode.bytes: shellcode
 	objcopy -I elf32-little -O binary --only-section=.shcode shellcode shellcode.bytes
-	chmod -x shellcode.text
+	chmod -x shellcode.bytes
 
 shellcode: shellcode.o
 	ld -o shellcode shellcode.o
