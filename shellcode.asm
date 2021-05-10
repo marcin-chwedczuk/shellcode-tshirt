@@ -1,4 +1,9 @@
 
+; For some reason I cannot make .text section both exec and writable.
+; So instead of fighting with ld and nasm I decided to use my own section '.shcode'
+; Linux allows _start symbol to be contained in any executable section.
+; So this program runs without problems on 32-bit Linux.
+
 section .shcode progbits alloc exec write
 global _start 
 
@@ -8,30 +13,21 @@ _start:
 _sh_start:
 	pop    esi
 
-	mov    DWORD [esi+0x8],esi
-	mov    BYTE [esi+0x7],0x0
-	mov    DWORD [esi+0xc],0x0
+	mov    dword [esi+0x8], esi
+	mov    byte  [esi+0x7], 0x0
+	mov    dword [esi+0xc], 0x0
 
-	; linux call eax(ebx, ecx, edx)
-
-	mov    eax,0xb ; execve(filename, argv, envp)
-	mov    ebx,esi ; points to first byte after last call
-	lea    ecx,[esi+0x8] ; points to memory area [ptr to esi, 0]
-	lea    edx,[esi+0xc] ; points to zero
+	mov    eax, 0xb ; execve(filename, argv, envp)
+	mov    ebx, esi 
+	lea    ecx, [esi+0x8] 
+	lea    edx, [esi+0xc]
 	int    0x80
 
-	mov    eax,0x1 ; exit(0); - protection so nobody notices what happened
-	mov    ebx,0x0
+	mov    eax, 0x1 ; exit(0)
+	mov    ebx, 0x0
 	int    0x80
 
 _sh_last:
-	; see: https://marcosvalle.github.io/osce/2018/05/06/JMP-CALL-POP-technique.html
 	call   _sh_start
-	; esi points here...
-	db  '/bin/sh'
+	db  '/bin/sh' ; esi will point here
 
-	; 0byte
-	;; esi + 0x8
-	; esi
-	;; esi + 0xc
-	;0
