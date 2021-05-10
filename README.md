@@ -67,13 +67,36 @@ Now this is interesting. Looks like we have a seven character string terminated 
 	call 0xffffffd1 ; must be a relative call
 	db  '/bin/sh'
 ```
+And our mysterious memory area should be:
+```
+ESI+0: /|b|i|n 
+ESI+4: /|s|h|00
+ESI+8: [value of esi register]
+ESI+c: 00|00|00|00
+```
 
 Now that we know what the missing bytes are, we may expect that our shellcode is calling one of the `execve` functions.
-In C `execve` is declared like this:
+In C `execve` is declared in `unistd.h` as:
 ```c
 int execve(const char *path, char *const argv[], char *const envp[]);
 ```
-So it takes three parameters, we may call it in C like this:
+It takes three parameters that should be know to every C programmer out there.
+Both `argv` and `envp` arrays contain pointers to strings and must be terminated
+by an entry containing `NULL`. Here is how we may use `execve` in C:
 ```c
-
+int main(int argc, char** argv) {
+	char* args[] = { "/bin/sh", NULL };
+	char* env[] = { NULL };
+	execve(args[0], args, env);
+}
 ```
+Actually when `env` is empty we may compress this code a bit (by reusing null already present in `args` array):
+```c
+int main(int argc, char** argv) {
+	char* args[] = { "/bin/sh", NULL };
+	execve(args[0], &args[0], &args[1]);
+}
+```
+Notice that `args` array looks similar to our memory area starting at `ESI+8`.
+
+
