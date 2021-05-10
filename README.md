@@ -90,7 +90,7 @@ int main(int argc, char** argv) {
 	execve(args[0], args, env);
 }
 ```
-Actually when `env` is empty we may compress this code a bit (by reusing null already present in `args` array):
+Actually when `env` is empty we may compress this code a bit (by reusing `NULL` already present in `args` array):
 ```c
 int main(int argc, char** argv) {
 	char* args[] = { "/bin/sh", NULL };
@@ -99,4 +99,28 @@ int main(int argc, char** argv) {
 ```
 Notice that `args` array looks similar to our memory area starting at `ESI+8`.
 
+When we return to the t-shirt code and check the next instructions we see:
+```asm
+	mov    eax, 0xb ; execve(filename, argv, envp)
+	mov    ebx, esi 
+	lea    ecx, [esi+0x8] 
+	lea    edx, [esi+0xc]
+	int    0x80
+```
+The `int 0x80` instruction is the standard way to call the Linux kernel from 32-bit code (64-bit code nowadays usually uses `syscall` instruction).
+When we call a system function we pass the function arguments in
+`ebx`, `ecx`, `edx`, `esi`, `edi` and `ebp` registers in exactly that order.
+`eax` register is used to select the function itself. We may see the list of all available functions [here](https://chromium.googlesource.com/chromiumos/docs/+/master/constants/syscalls.md#x86-32_bit).
 
+For example to call `exit(0)`, first we need to check the value that system assigned to `exit` function (`0x01`) and put it in `eax` register.
+`exit(0)` takes one argument, so we must also put its value in `ebx` register
+(subsequent arguments would go in `ecx`, then `edx` and so on).
+Finally we may call the kernel using `int 0x80` software interrupt:
+```asm
+        ; C equivalent
+        ; exit(0);
+
+        mov    eax, 0x1
+	mov    ebx, 0x0
+	int    0x80
+```

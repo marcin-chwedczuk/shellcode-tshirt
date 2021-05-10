@@ -4,6 +4,11 @@
 ; Linux allows _start symbol to be contained in any executable section.
 ; So this program runs without problems on 32-bit Linux.
 
+; You can run shellcode as a standalone program.
+; This is only possible because memory for ELF sections is allocated
+; in full pages e.g. 4kB. Otherwise writing data to memory
+; beyond db '/bin/sh' would result in a segmentation fault.
+
 section .shcode progbits alloc exec write
 global _start 
 
