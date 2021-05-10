@@ -23,18 +23,18 @@ _end:
 data:
         db 'some data'
 ```
-When we use shellcode on a real system, we have no idea at which memory address our shellcode will be located. Sometimes this information can be very useful e.g. when our shellcode contains not only code but also data.
+When we use shellcode on a real system, we have no idea at which memory address our shellcode will be loaded. Sometimes this information can be very useful e.g. when our shellcode contains not only code but also data.
 While `jmp`s and `call`s can operate on relative addresses, thus allowing us to write position independent code (PIC), the data access instructions (`mov`s) need absolute addresses. 
 
 NOTE: The last sentence is no longer true on x86_64 architecture, as it introduced a new addressing mode called "RIP relative addressing".
 
 When we use `jmp` and `call` instructions in relative address mode, we are actually using offsets relative to the _next_ instruction following `jmp` or `call` opcode.
-So a relative jump `jmp short 0` (again NASM syntax), will just jump to the next instruction.
+So a relative jump `jmp short 0` (again NASM syntax), will just jump to the next instruction and `jmp short -2` will create an infinite loop (assuming that the entire `jmp` instruction takes two bytes).
 
 `call offset` instruction is more interesting, as it will not only jump to the offset, but also will push the address of the following instruction on the stack (the so called return address).
 
 Now we can understand how `jmp`, `call`, `pop` pattern works.
-First we need to position `call` instruction just before the data, of which we want to get the address. Then we do a relative jump to the `call`. The `call` will put the address of the next instruction (in this case our data) on the stack and will again do a relative jump to the specified offset. Now we have the address of our data on the stack, so we may just `pop` it into a register of our choice :tada:
+First we need to position `call` instruction just before the data, of which we want to get address. Then we do a relative jump to the `call`. The `call` will put the address of the next instruction (in this case our data) on the stack and will again do a relative jump to the specified offset. Now we have the address of our data on the stack, so we may just `pop` it into a register of our choice :tada:
 
 When we take a look at the t-shirt again, we may notice that the actual offsets printed there are wrong. `jmp 0x2b` should be in fact `jmp 0x2a` because the address of `call` instruction is `0x2f = 0x05 + 0x2a`. The `call` instruction on the other hand should jump to the `pop esi` instruction, so the offset should be `0x2f (call addr) + 0x05 (length of call instruction) + offset = 0x05`, or `-0x2f` (using 2's complement this value can be represented as `0xffffffd1`).
 
@@ -45,14 +45,14 @@ Right after `pop esi` we have sequence of three move instructions:
 	mov    dword ptr [esi+0xc], 0x0
 ```
 We know now that `esi` points to the area after our last shellcode instruction.
-We may illustrate this area as:
+We may illustrate this memory area as:
 ```
 ESI+0: ??|??|??|?? 
 ESI+4: ??|??|??|??
 ESI+8: ??|??|??|??
 ESI+c: ??|??|??|??
 ```
-After executing all these move instructions (in intel syntax that we have here it is always `mov dest, src`) our memory area will look like this:
+After executing all these move instructions (in intel syntax that we have here, it is always `mov dest, src`) our memory area will look like this:
 ```
 ESI+0: ??|??|??|?? 
 ESI+4: ??|??|??|00
@@ -80,7 +80,7 @@ In C `execve` is declared in `unistd.h` as:
 ```c
 int execve(const char *path, char *const argv[], char *const envp[]);
 ```
-It takes three parameters that should be know to every C programmer out there.
+It takes three arguments that should be know to every C programmer out there.
 Both `argv` and `envp` arrays contain pointers to strings and must be terminated
 by an entry containing `NULL`. Here is how we may use `execve` in C:
 ```c
@@ -108,16 +108,16 @@ When we return to the t-shirt code and check the next instructions we see:
 	int    0x80
 ```
 The `int 0x80` instruction is the standard way to call the Linux kernel from 32-bit code (64-bit code nowadays usually uses `syscall` instruction).
-When we call a system function we pass the function arguments in
+When we call a system function, we pass the function arguments in
 `ebx`, `ecx`, `edx`, `esi`, `edi` and `ebp` registers in exactly that order.
 `eax` register is used to select the function itself. We may see the list of all available functions [here](https://chromium.googlesource.com/chromiumos/docs/+/master/constants/syscalls.md#x86-32_bit).
 
 For example to call `exit(0)`, first we need to check the value that system assigned to `exit` function (`0x01`) and put it in `eax` register.
-`exit(0)` takes one argument, we must put the argument value in `ebx` register
+`exit(0)` takes one argument. We must put that argument value in `ebx` register
 (subsequent arguments would go in `ecx`, then `edx` and so on).
 Finally we may call the kernel using `int 0x80` software interrupt:
 ```asm
-        ; C equivalent
+        ; C equivalent:
         ; exit(0);
 
         mov    eax, 0x1
@@ -138,9 +138,9 @@ called:
 But here since we use indirect memory addressing, `lea ecx, [esi+0x8]`
 is equivalent to `ecx = esi + 0x08` in C.
 
-After all these `mov`s and `lea`s we will have the address of `/bin/sh` string in `ebx`, the address of `args` array (pointer to `/bin/sh` followed by `NULL`)
+After all these `mov`s and `lea`s we have the address of `/bin/sh` string in `ebx`, the address of `args` array (pointer to `/bin/sh` followed by `NULL`)
 in `ecx` and finally address of `NULL` in `edx`.
-In other words our code will be equivalent to the C code that we saw earlier:
+In other words our code is equivalent to the C code that we saw earlier:
 ```c
 int main(int argc, char** argv) {
 	char* args[] = { "/bin/sh", NULL };
@@ -148,9 +148,9 @@ int main(int argc, char** argv) {
 }
 ```
 
-What follows call to `execve` is a call to `exit(0)`. This is a standard technique used in shellcode to just exit the program without crashes. This way we will leave no traces of our code like coredumps.
+What follows call to `execve`, is a call to `exit(0)`. This is a standard technique used in shellcode to just exit the program without crashing it. This way we will leave no traces of our code (think no coredumps).
 
-All in all the code on our t-shirt should look like this:
+All in all the code on my t-shirt should look like this:
 ```asm
 	jmp   short _sh_last
  
@@ -176,7 +176,7 @@ _sh_last:
 	db  '/bin/sh'
 ```
 
-Now the moral of this story: always put a _working_ shellcode on t-shirts.
+Now the moral of this story: always put a _working_ shellcode on t-shirts to avoid further embarrassment by posts like this one ;)
 
 Bonus: This repo contains a `Makefile` that will build the shellcode and also prepare a C header file containing the shellcode bytes. There is also a wrapper program that will demonstrate that the shellcode indeed works. The only thing that you need is a 32-bit Linux.
 
